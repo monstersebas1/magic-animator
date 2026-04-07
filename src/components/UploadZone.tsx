@@ -5,10 +5,9 @@ import { useDropzone } from 'react-dropzone';
 
 interface UploadZoneProps {
   onUpload: (base64: string, mediaType: string) => void;
-  isLoading: boolean;
 }
 
-export default function UploadZone({ onUpload, isLoading }: UploadZoneProps) {
+export default function UploadZone({ onUpload }: UploadZoneProps) {
   const [preview, setPreview] = useState<string | null>(null);
 
   const onDrop = useCallback(
@@ -33,7 +32,6 @@ export default function UploadZone({ onUpload, isLoading }: UploadZoneProps) {
     onDrop,
     accept: { 'image/png': [], 'image/jpeg': [], 'image/webp': [] },
     maxFiles: 1,
-    disabled: isLoading,
   });
 
   return (
@@ -41,7 +39,6 @@ export default function UploadZone({ onUpload, isLoading }: UploadZoneProps) {
       {...getRootProps()}
       className={`relative flex flex-col items-center justify-center w-full max-w-2xl mx-auto rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer
         ${isDragActive ? 'border-purple-500 bg-purple-500/10 scale-[1.02]' : 'border-[#333] bg-[#111] hover:border-purple-500/50 hover:bg-[#151515]'}
-        ${isLoading ? 'opacity-60 pointer-events-none' : ''}
         ${preview ? 'p-4' : 'p-16'}`}
     >
       <input {...getInputProps()} />
@@ -64,15 +61,6 @@ export default function UploadZone({ onUpload, isLoading }: UploadZoneProps) {
           </p>
           <p className="text-sm text-zinc-500">PNG, JPG, or WebP</p>
         </>
-      )}
-
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-purple-400 font-medium">Analyzing design...</span>
-          </div>
-        </div>
       )}
     </div>
   );

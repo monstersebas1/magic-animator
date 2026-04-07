@@ -24,10 +24,3 @@ export interface AnimationConfig {
   easing: 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear' | 'spring';
 }
 
-export interface Project {
-  id: string;
-  imageUrl: string;
-  elements: DetectedElement[];
-  animations: AnimationConfig[];
-  lottieJson?: object;
-}

@@ -101,6 +101,7 @@ function buildKeyframes(
       break;
 
     case 'rotate':
+      opacity.k = [{ t: 0, s: [100] }];
       rotation.k = [
         { t: startFrame, s: [0], e: [360], ...curves },
         { t: endFrame, s: [360] },

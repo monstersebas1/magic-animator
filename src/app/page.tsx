@@ -2,74 +2,56 @@
 
 import { useState, useCallback } from 'react';
 import UploadZone from '@/components/UploadZone';
+import CanvasEditor from '@/components/CanvasEditor';
 import AnimationPreview from '@/components/AnimationPreview';
 import ElementList from '@/components/ElementList';
 import ExportPanel from '@/components/ExportPanel';
 import { DetectedElement, AnimationConfig } from '@/types';
 import { ANIMATION_DEFAULTS } from '@/lib/presets';
+import { generateLottie } from '@/lib/lottie-generator';
 
 type AppState = 'upload' | 'editing' | 'preview';
 
 export default function Home() {
   const [state, setState] = useState<AppState>('upload');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{ w: number; h: number }>({ w: 800, h: 600 });
   const [elements, setElements] = useState<DetectedElement[]>([]);
   const [animations, setAnimations] = useState<AnimationConfig[]>([]);
   const [lottieData, setLottieData] = useState<object | null>(null);
 
-  const handleUpload = useCallback(async (base64: string, mediaType: string) => {
-    setIsAnalyzing(true);
-    setImagePreview(`data:${mediaType};base64,${base64}`);
-
-    const res = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64, mediaType }),
-    });
-
-    const data = await res.json();
-    if (data.elements) {
-      setElements(data.elements);
-      const defaultAnimations: AnimationConfig[] = data.elements.map(
-        (el: DetectedElement, i: number) => {
-          const preset = el.suggestedAnimation !== 'none'
-            ? ANIMATION_DEFAULTS[el.suggestedAnimation]
-            : { duration: 600, delay: 0, easing: 'ease-out' as const };
-          return {
-            elementId: el.id,
-            animation: el.suggestedAnimation,
-            duration: preset.duration,
-            delay: i * 150,
-            easing: preset.easing,
-          };
-        }
-      );
-      setAnimations(defaultAnimations);
-      setState('editing');
-    }
-    setIsAnalyzing(false);
+  const handleUpload = useCallback((base64: string, mediaType: string) => {
+    const dataUrl = `data:${mediaType};base64,${base64}`;
+    setImagePreview(dataUrl);
+    const img = new Image();
+    img.onload = () => setImageDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+    img.src = dataUrl;
+    setState('editing');
   }, []);
 
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        width: 800,
-        height: 600,
-        elements,
-        animations,
-      }),
+  const syncAnimations = (newElements: DetectedElement[]) => {
+    setElements(newElements);
+    const updated: AnimationConfig[] = newElements.map((el, i) => {
+      const existing = animations.find((a) => a.elementId === el.id);
+      if (existing) return existing;
+      const preset = el.suggestedAnimation !== 'none'
+        ? ANIMATION_DEFAULTS[el.suggestedAnimation]
+        : { duration: 600, delay: 0, easing: 'ease-out' as const };
+      return {
+        elementId: el.id,
+        animation: el.suggestedAnimation,
+        duration: preset.duration,
+        delay: i * 150,
+        easing: preset.easing,
+      };
     });
-    const data = await res.json();
-    if (data.lottie) {
-      setLottieData(data.lottie);
-      setState('preview');
-    }
-    setIsGenerating(false);
+    setAnimations(updated);
+  };
+
+  const handleGenerate = () => {
+    const lottie = generateLottie(imageDimensions.w, imageDimensions.h, elements, animations);
+    setLottieData(lottie);
+    setState('preview');
   };
 
   const handleReset = () => {
@@ -91,6 +73,7 @@ export default function Home() {
             </svg>
           </div>
           <h1 className="text-lg font-semibold">Magic Animator</h1>
+          <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">FREE</span>
         </div>
         {state !== 'upload' && (
           <button
@@ -110,74 +93,55 @@ export default function Home() {
               Turn designs into animations
             </h2>
             <p className="text-zinc-500 text-lg">
-              Upload a static design and AI will bring it to life
+              Upload a design, draw regions, animate — no API keys needed
             </p>
           </div>
-          <UploadZone onUpload={handleUpload} isLoading={isAnalyzing} />
+          <UploadZone onUpload={handleUpload} />
         </main>
       )}
 
       {/* Editing State */}
       {state === 'editing' && (
         <main className="flex-1 grid grid-cols-[1fr_360px] gap-0 overflow-hidden">
-          {/* Left: Image with overlays */}
-          <div className="flex flex-col items-center justify-center p-8 border-r border-[#1a1a1a]">
-            <div className="relative inline-block max-w-full max-h-[500px]">
-              {imagePreview && (
-                <img
-                  src={imagePreview}
-                  alt="Design"
-                  className="max-h-[500px] rounded-xl object-contain"
-                />
-              )}
-              {/* Element overlay boxes */}
-              {elements.map((el, i) => {
-                const colors = ['border-purple-500', 'border-blue-500', 'border-emerald-500', 'border-amber-500', 'border-red-500', 'border-violet-500'];
-                return (
-                  <div
-                    key={el.id}
-                    className={`absolute border-2 ${colors[i % colors.length]} rounded bg-white/5`}
-                    style={{
-                      left: `${el.bounds.x}%`,
-                      top: `${el.bounds.y}%`,
-                      width: `${el.bounds.width}%`,
-                      height: `${el.bounds.height}%`,
-                    }}
-                  >
-                    <span className="absolute -top-5 left-0 text-[10px] text-zinc-400 whitespace-nowrap">
-                      {el.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Left: Canvas with drawable regions */}
+          <div className="flex flex-col p-6 border-r border-[#1a1a1a] overflow-y-auto">
+            {imagePreview && (
+              <CanvasEditor
+                imageSrc={imagePreview}
+                elements={elements}
+                onElementsChange={syncAnimations}
+              />
+            )}
           </div>
 
-          {/* Right: Controls */}
+          {/* Right: Animation Controls */}
           <div className="flex flex-col p-4 bg-[#0d0d0d] overflow-hidden">
             <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
-              Detected Elements ({elements.length})
+              {elements.length > 0
+                ? `Elements (${elements.length})`
+                : 'Draw elements on your design'}
             </h3>
-            <div className="flex-1 overflow-y-auto">
-              <ElementList
-                elements={elements}
-                animations={animations}
-                onChange={setAnimations}
-              />
-            </div>
+            {elements.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-zinc-600 text-sm text-center px-4">
+                  Select an element type from the toolbar, then click and drag on your design to define animatable regions.
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                <ElementList
+                  elements={elements}
+                  animations={animations}
+                  onChange={setAnimations}
+                />
+              </div>
+            )}
             <button
               onClick={handleGenerate}
-              disabled={isGenerating}
-              className="mt-4 w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium transition-colors flex items-center justify-center gap-2"
+              disabled={elements.length === 0}
+              className="mt-4 w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
             >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                'Generate Animation'
-              )}
+              Generate Animation
             </button>
           </div>
         </main>
@@ -202,7 +166,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right: Element list (read-only view) */}
+          {/* Right: Timeline */}
           <div className="flex flex-col p-4 bg-[#0d0d0d] overflow-hidden">
             <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
               Animation Timeline
